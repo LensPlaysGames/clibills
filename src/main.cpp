@@ -26,8 +26,12 @@ unsigned int days_until_due(Bill b) {
     if (b.due_date < ymd.day())
         out = (static_cast<unsigned>(ymdl.day()) - static_cast<unsigned>(ymd.day())) + static_cast<unsigned>(b.due_date);
     // If the due date is today or after today, then the bill is due this month.
-    else out = static_cast<unsigned>(b.due_date) - static_cast<unsigned>(ymd.day());
-    if (b.paid) out += static_cast<unsigned>(ymdl.day());
+    else {
+        out = static_cast<unsigned>(b.due_date) - static_cast<unsigned>(ymd.day());
+        // unless the bill has been paid (in advance) this month, in which case
+        // the bill is due next month.
+        if (b.paid) out += static_cast<unsigned>(ymdl.day());
+    }
 
     return out;
 }
@@ -45,9 +49,9 @@ int main(int argc, char** argv) {
     std::cout << "day: " << ymd.day() << "\n";
 
     std::vector<Bill> bills{
-        {"Rent", std::chrono::day(1), 132500, true},
+        {"Rent", std::chrono::day(1), 132500},
         {"Car Insurance", std::chrono::day(5), 32500},
-        {"Car Payment", std::chrono::day(21), 26262},
+        {"Car Payment", std::chrono::day(21), 26262, true},
         {"Internet", std::chrono::day(18), 8800},
     };
 
