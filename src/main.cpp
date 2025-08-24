@@ -70,12 +70,29 @@ void parse_bills(std::string_view bills_source) {
     }
 
     // parse number
-    auto amount = std::stol(bills_source.data());
+    auto amount = std::stoi(bills_source.data());
     std::cout << "Parsed bill amount '" << amount << "'\n";
 
     // eat number
     while (not bills_source.empty() and std::isdigit(bills_source.at(0)))
         bills_source.remove_prefix(1);
+
+    // amount is in cents, but written in dollars.
+    amount *= 100;
+
+    // parse cents, if present
+    if (bills_source.at(0) == '.') {
+        bills_source.remove_prefix(1);
+        auto cents_amount = std::stoi(bills_source.data());
+        std::cout << "Parsed bill cents amount '" << cents_amount << "'\n";
+
+        // record cents
+        amount += cents_amount;
+
+        // eat number
+        while (not bills_source.empty() and std::isdigit(bills_source.at(0)))
+            bills_source.remove_prefix(1);
+    }
 
     // skip whitespace to reach beginning of bill's name
     while (not bills_source.empty() and std::isspace(bills_source.at(0)))
@@ -92,7 +109,7 @@ void parse_bills(std::string_view bills_source) {
     std::cout << "Parsed bill name '" << name << "'\n";
 
     // parse due date
-    auto due_date = std::stol(bills_source.data());
+    auto due_date = std::stoi(bills_source.data());
     std::cout << "Parsed bill due date '" << due_date << "'\n";
     // eat number
     while (not bills_source.empty() and std::isdigit(bills_source.at(0)))
@@ -106,6 +123,7 @@ void parse_bills(std::string_view bills_source) {
 
     std::cout << "Parsed bill '" << name << "' of amount '" << amount << "' with due date '" << due_date << "'\n";
     std::cout << "Remaining source:\n'" << bills_source << "'\n";
+    Bill bill{name, std::chrono::day(due_date), amount};
 }
 
 int main(int argc, char** argv) {
