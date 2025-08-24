@@ -1,8 +1,10 @@
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <iostream>
 #include <vector>
 #include <string>
+#include <numeric>
 
 struct Bill {
     std::string name;
@@ -10,6 +12,10 @@ struct Bill {
     int amount{0}; // cents
     bool paid{false};
 };
+
+unsigned int add_amount(unsigned int init, Bill b) {
+    return init + b.amount;
+}
 
 std::string dollar_amount(unsigned long long amount) {
     return "$" + std::to_string(amount / 100) + "." + std::to_string(amount % 100);
@@ -45,6 +51,63 @@ bool bill_compare_date(Bill a, Bill b) {
     return days_until_due(a) < days_until_due(b);
 }
 
+void parse_bills(std::string_view bills_source) {
+    // If character encountered is a space, discard and move on.
+    while (not bills_source.empty() and std::isspace(bills_source.at(0)))
+        bills_source.remove_prefix(1);
+
+    if (bills_source.empty()) {
+        std::cout << "Source file empty: no bills\n";
+        return;
+    }
+
+    // skip dollar sign, if present.
+    if (bills_source.at(0) == '$') bills_source.remove_prefix(1);
+
+    // invalid amount error message
+    if (not std::isdigit(bills_source.at(0))) {
+        std::cerr << "ERROR in bills source file: amount does not begin with digit\n";
+    }
+
+    // parse number
+    auto amount = std::stol(bills_source.data());
+    std::cout << "Parsed bill amount '" << amount << "'\n";
+
+    // eat number
+    while (not bills_source.empty() and std::isdigit(bills_source.at(0)))
+        bills_source.remove_prefix(1);
+
+    // skip whitespace to reach beginning of bill's name
+    while (not bills_source.empty() and std::isspace(bills_source.at(0)))
+        bills_source.remove_prefix(1);
+
+    // everything up until the due date digit(s) is part of the bill name
+    std::string name{};
+    while (not bills_source.empty() and not std::isdigit(bills_source.at(0))) {
+        name += bills_source.at(0);
+        bills_source.remove_prefix(1);
+    }
+    auto name_end = name.find_last_not_of(" \r\n\t\v");
+    name.erase(name_end + 1);
+    std::cout << "Parsed bill name '" << name << "'\n";
+
+    // parse due date
+    auto due_date = std::stol(bills_source.data());
+    std::cout << "Parsed bill due date '" << due_date << "'\n";
+    // eat number
+    while (not bills_source.empty() and std::isdigit(bills_source.at(0)))
+        bills_source.remove_prefix(1);
+
+    // eat 'st', 'nd', 'rd', or 'th' (ordinal affix)
+    if (bills_source.starts_with("st") or bills_source.starts_with("nd") or
+        bills_source.starts_with("rd") or bills_source.starts_with("th")) {
+        bills_source.remove_prefix(2);
+    }
+
+    std::cout << "Parsed bill '" << name << "' of amount '" << amount << "' with due date '" << due_date << "'\n";
+    std::cout << "Remaining source:\n'" << bills_source << "'\n";
+}
+
 int main(int argc, char** argv) {
     // TODO: Handle "pay <bill_name>" command to set a bill as paid
     // TODO: Handle "unpay <bill_name>", "unpay" command to set a bill or all
@@ -55,6 +118,8 @@ int main(int argc, char** argv) {
         std::cout << "Sorry, but arguments aren't handled yet.\n";
         return 0;
     }
+
+    parse_bills("$1325        Rent                 1st   $325         Car Insurance        5th   $262.62      Car Payment          21st");
 
     const std::chrono::time_point now{std::chrono::system_clock::now()};
     const std::chrono::year_month_day ymd{std::chrono::floor<std::chrono::days>(now)};
@@ -75,11 +140,7 @@ int main(int argc, char** argv) {
     std::sort(bills.begin(), bills.end(), bill_compare_date);
 
     // calculate monthly expenses
-    unsigned long long int expenses{0};
-    for (const auto b : bills) {
-        expenses += b.amount;
-    }
-    std::cout << "Total Monthly Expenses: " << dollar_amount(expenses) << "\n";
+    std::cout << "Total Monthly Expenses: " << dollar_amount(std::accumulate(bills.begin(), bills.end(), 0, add_amount)) << "\n";
 
     for (const auto b : bills) {
         // print dollar amount
