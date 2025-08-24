@@ -1,6 +1,9 @@
 #include <algorithm>
 #include <cctype>
+#include <expected>
+#include <cstdio>
 #include <chrono>
+#include <filesystem>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -51,15 +54,15 @@ bool bill_compare_date(Bill a, Bill b) {
     return days_until_due(a) < days_until_due(b);
 }
 
-void parse_bills(std::string_view bills_source) {
+// TODO: ErrorOr return type basically
+[[nodiscard]]
+std::expected<Bill, bool> parse_bill(std::string_view& bills_source) {
     // If character encountered is a space, discard and move on.
     while (not bills_source.empty() and std::isspace(bills_source.at(0)))
         bills_source.remove_prefix(1);
 
-    if (bills_source.empty()) {
-        std::cout << "Source file empty: no bills\n";
-        return;
-    }
+    if (bills_source.empty())
+        return std::unexpected(false);
 
     // skip dollar sign, if present.
     if (bills_source.at(0) == '$') bills_source.remove_prefix(1);
@@ -71,7 +74,7 @@ void parse_bills(std::string_view bills_source) {
 
     // parse number
     auto amount = std::stoi(bills_source.data());
-    std::cout << "Parsed bill amount '" << amount << "'\n";
+    // std::cout << "Parsed bill amount '" << amount << "'\n";
 
     // eat number
     while (not bills_source.empty() and std::isdigit(bills_source.at(0)))
@@ -84,7 +87,7 @@ void parse_bills(std::string_view bills_source) {
     if (bills_source.at(0) == '.') {
         bills_source.remove_prefix(1);
         auto cents_amount = std::stoi(bills_source.data());
-        std::cout << "Parsed bill cents amount '" << cents_amount << "'\n";
+        // std::cout << "Parsed bill cents amount '" << cents_amount << "'\n";
 
         // record cents
         amount += cents_amount;
@@ -106,11 +109,12 @@ void parse_bills(std::string_view bills_source) {
     }
     auto name_end = name.find_last_not_of(" \r\n\t\v");
     name.erase(name_end + 1);
-    std::cout << "Parsed bill name '" << name << "'\n";
+    // std::cout << "Parsed bill name '" << name << "'\n";
 
     // parse due date
     auto due_date = std::stoi(bills_source.data());
-    std::cout << "Parsed bill due date '" << due_date << "'\n";
+    // std::cout << "Parsed bill due date '" << due_date << "'\n";
+
     // eat number
     while (not bills_source.empty() and std::isdigit(bills_source.at(0)))
         bills_source.remove_prefix(1);
@@ -121,9 +125,21 @@ void parse_bills(std::string_view bills_source) {
         bills_source.remove_prefix(2);
     }
 
-    std::cout << "Parsed bill '" << name << "' of amount '" << amount << "' with due date '" << due_date << "'\n";
-    std::cout << "Remaining source:\n'" << bills_source << "'\n";
-    Bill bill{name, std::chrono::day(due_date), amount};
+    // std::cout << "Parsed bill '" << name << "' of amount '" << amount << "' with due date '" << due_date << "'\n";
+    // std::cout << "Remaining source:\n'" << bills_source << "'\n";
+
+    return Bill{name, std::chrono::day(due_date), amount};
+}
+
+[[nodiscard]]
+std::vector<Bill> parse_bills(std::string_view bills_source) {
+    std::vector<Bill> out{};
+    while (not bills_source.empty()) {
+        auto billp = parse_bill(bills_source);
+        if (not billp.has_value()) break;
+        out.emplace_back(billp.value());
+    }
+    return out;
 }
 
 int main(int argc, char** argv) {
@@ -137,28 +153,31 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    parse_bills("$1325        Rent                 1st   $325         Car Insurance        5th   $262.62      Car Payment          21st");
+    std::string contents{};
+    std::filesystem::path path{"bills.txt"};
+    FILE* f = fopen(path.c_str(), "rb");
+    if (not f) {
+        std::cerr << "ERROR: Could not opens bills source file at '" << path << "'\n";
+        return 1;
+    }
+    int nread{};
+    std::array<char, 1024> buffer{};
+    while ((nread = fread(buffer.data(), 1, 1024, f)) > 0) {
+        contents += std::string_view(buffer.data(), nread);
+    }
+    fclose(f);
+
+    auto bills = parse_bills(contents);
+
+    // calculate monthly expenses
+    std::cout << "Total Monthly Expenses: " << dollar_amount(std::accumulate(bills.begin(), bills.end(), 0, add_amount)) << "\n";
+
+    // Sort bills by due date
+    std::sort(bills.begin(), bills.end(), bill_compare_date);
 
     const std::chrono::time_point now{std::chrono::system_clock::now()};
     const std::chrono::year_month_day ymd{std::chrono::floor<std::chrono::days>(now)};
     const std::chrono::year_month_day_last ymdl{ymd.year(), ymd.month() / std::chrono::last};
-
-    // TODO: Make data driven (read/parse from file at runtime)
-    std::vector<Bill> bills{
-        {"Rent", std::chrono::day(1), 132500},
-        {"Car Insurance", std::chrono::day(5), 32500},
-        {"Car Payment", std::chrono::day(21), 26262},
-        {"Internet", std::chrono::day(18), 8800},
-        {"Phone", std::chrono::day(17), 6800},
-        {"Electricity", std::chrono::day(15), 15000},
-        {"Renter's Insurance", std::chrono::day(12), 1500},
-    };
-
-    // Sort by due date
-    std::sort(bills.begin(), bills.end(), bill_compare_date);
-
-    // calculate monthly expenses
-    std::cout << "Total Monthly Expenses: " << dollar_amount(std::accumulate(bills.begin(), bills.end(), 0, add_amount)) << "\n";
 
     for (const auto b : bills) {
         // print dollar amount

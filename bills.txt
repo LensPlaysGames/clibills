@@ -1,0 +1,7 @@
+$1325        Rent                 1st
+$325         Car Insurance        5th
+$262.62      Car Payment          21st
+$15          Renter's Insurance   12th
+$88          Internet             18th
+$68          Phone                17th
+$125         Electricity          15th
