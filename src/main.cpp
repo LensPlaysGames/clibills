@@ -35,17 +35,6 @@ unsigned int days_until_due(Bill b) {
 // due on 18, currently 21, 18 should go later than 22
 bool bill_compare_date(Bill a, Bill b) {
     return days_until_due(a) < days_until_due(b);
-
-    // paid bills go last
-    if (a.paid) return false;
-    if (b.paid) return true;
-
-    const std::chrono::time_point now{std::chrono::system_clock::now()};
-    const std::chrono::year_month_day ymd{std::chrono::floor<std::chrono::days>(now)};
-    const std::chrono::day day{ymd.day()};
-
-    if (a.due_date >= day) return true;
-    return a.due_date < b.due_date;
 }
 
 int main(int argc, char** argv) {
